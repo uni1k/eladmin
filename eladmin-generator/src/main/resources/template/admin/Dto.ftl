@@ -1,5 +1,5 @@
 /*
-*  Copyright 2019-2020 Zheng Jie
+*  Copyright 2019-2025 Zheng Jie
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -24,9 +24,10 @@ import java.math.BigDecimal;
 </#if>
 import java.io.Serializable;
 <#if !auto && pkColumnType = 'Long'>
-import com.alibaba.fastjson.annotation.JSONField;
-import com.alibaba.fastjson.serializer.ToStringSerializer;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.serializer.ToStringSerializer;
 </#if>
+import io.swagger.annotations.ApiModelProperty;
 
 /**
 * @website https://eladmin.vip
@@ -40,7 +41,9 @@ public class ${className}Dto implements Serializable {
     <#list columns as column>
 
     <#if column.remark != ''>
-    /** ${column.remark} */
+    @ApiModelProperty(value = "${column.remark}")
+    <#else>
+    @ApiModelProperty(value = "${column.changeColumnName}")
     </#if>
     <#if column.columnKey = 'PRI'>
     <#if !auto && pkColumnType = 'Long'>
