@@ -24,7 +24,6 @@ import me.zhengjie.exception.BadRequestException;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.springframework.web.multipart.MultipartFile;
-
 import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -136,15 +135,15 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
         String resultSize;
         if (size / GB >= 1) {
             //如果当前Byte的值大于等于1GB
-            resultSize = DF.format(size / (float) GB) + "GB   ";
+            resultSize = DF.format(size / (float) GB) + "GB";
         } else if (size / MB >= 1) {
             //如果当前Byte的值大于等于1MB
-            resultSize = DF.format(size / (float) MB) + "MB   ";
+            resultSize = DF.format(size / (float) MB) + "MB";
         } else if (size / KB >= 1) {
             //如果当前Byte的值大于等于1KB
-            resultSize = DF.format(size / (float) KB) + "KB   ";
+            resultSize = DF.format(size / (float) KB) + "KB";
         } else {
-            resultSize = size + "B   ";
+            resultSize = size + "B";
         }
         return resultSize;
     }
@@ -206,23 +205,42 @@ public class FileUtil extends cn.hutool.core.io.FileUtil {
     }
 
     /**
+     * 防止 CSV/XLSX 注入（CWE-1236）
+     * <p>
+     * 当单元格值以 {@code = + - @ \t \r} 开头时，电子表格软件可能将其解释为公式。
+     * 本方法在这类值前添加单引号前缀，并转义值中已有的单引号，防止公式注入攻击。
+     * </p>
+     *
+     * @param value 原始单元格值
+     * @return 经过安全处理的单元格值
+     * @see <a href="https://owasp.org/www-community/attacks/CSV_Injection">OWASP CSV Injection</a>
+     */
+    public static String sanitizeCellValue(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        char first = value.charAt(0);
+        if (first == '=' || first == '+' || first == '-' || first == '@'
+                || first == '\t' || first == '\r') {
+            // 转义值中已有的单引号，防止攻击者利用单引号逃逸
+            return "'" + value.replace("'", "''");
+        }
+        return value;
+    }
+
+    /**
      * 导出excel
      */
     public static void downloadExcel(List<Map<String, Object>> list, HttpServletResponse response) throws IOException {
         String tempPath = SYS_TEM_DIR + IdUtil.fastSimpleUUID() + ".xlsx";
         File file = new File(tempPath);
         BigExcelWriter writer = ExcelUtil.getBigWriter(file);
-        // 处理数据以防止CSV注入
-        List<Map<String, Object>> sanitizedList = list.parallelStream().map(map -> {
+        // 处理数据以防止CSV/XLSX注入（CWE-1236）
+        List<Map<String, Object>> sanitizedList = list.stream().map(map -> {
             Map<String, Object> sanitizedMap = new LinkedHashMap<>();
             map.forEach((key, value) -> {
                 if (value instanceof String) {
-                    String strValue = (String) value;
-                    // 检查并处理以特殊字符开头的值
-                    if (strValue.startsWith("=") || strValue.startsWith("+") || strValue.startsWith("-") || strValue.startsWith("@")) {
-                        strValue = "'" + strValue; // 添加单引号前缀
-                    }
-                    sanitizedMap.put(key, strValue);
+                    sanitizedMap.put(key, sanitizeCellValue((String) value));
                 } else {
                     sanitizedMap.put(key, value);
                 }
